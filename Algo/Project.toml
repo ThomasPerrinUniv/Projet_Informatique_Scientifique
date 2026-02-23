@@ -1,0 +1,10 @@
+name = "Algo"
+uuid = "962b7c0e-f351-4d90-8f68-da26cc9efaff"
+version = "0.1.0"
+authors = ["Perrin <thomas.perrin1@etu.univ-nantes.fr>"]
+
+[deps]
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+
+[compat]
+DataStructures = "0.19.3"
