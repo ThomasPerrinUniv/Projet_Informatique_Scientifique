@@ -19,6 +19,7 @@ function read_map(filename)
                 width = parse(Int, split(s)[2])
             elseif startswith(s, "map")
                 map = zeros(Float64, height, width)
+
                 reading_map = true
                 lines = 1 
             elseif reading_map && !isempty(s)
@@ -40,7 +41,52 @@ function read_map(filename)
             end
         end
     end
+    if map === nothing
+        error("La map n'a jamais été initialisée ! Vérifie le fichier.")
+    end
 
+    return map
+end
+mutable struct map
+    cost::Float64
+    safe::Vector{Tuple{Float64,Float64}}
+end
+function safe_read_map(filename)
+    map = nothing
+    lines = 0
+    height = 0
+    width = 0
+    open(filename) do f
+        reading_map = false
+        for raw_line in eachline(f)
+            s = strip(raw_line)
+            if startswith(s, "height")
+                height = parse(Int, split(s)[2])
+            elseif startswith(s, "width")
+                width = parse(Int, split(s)[2])
+            elseif startswith(s, "map")
+                map = [ Cell(0.0, [(0.0, Inf)]) for _ in 1:height, _ in 1:width ]
+                reading_map = true
+                lines = 1 
+            elseif reading_map && !isempty(s)
+                for (i, c) in enumerate(s)
+                    val = if c=='@' || c=='T'
+                        Inf
+                    elseif c=='.'
+                        1
+                    elseif c=='S'
+                        5
+                    elseif c=='W'
+                        8
+                    else
+                        1
+                    end
+                    map[lines, i].cost = val
+                end
+                lines += 1
+            end
+        end
+    end
     if map === nothing
         error("La map n'a jamais été initialisée ! Vérifie le fichier.")
     end
@@ -278,6 +324,69 @@ function algoAstar(fname::String,D::Tuple{Int64, Int64},A::Tuple{Int64, Int64})
         println("Aucun chemin n'existe entre le départ et l'arrivée !")
     end
 end
+
+end
+mutable struct Node
+    time::Float64
+    coord::Vector{Tuple{Int,Int}}
+    pred::Float64
+end
+mutable struct Info
+    pred::Float64
+    poids::Float64
+end
+function algoAstar2(fname::String,D::Tuple{Int64, Int64},A::Tuple{Int64, Int64})
+    function heuristic(v::Tuple{Int64, Int64},A::Tuple{Int64, Int64})
+        vy,vx=v
+        Ay,Ax=A
+        return abs(vy-Ay)+abs(vx-Ax)    
+    end
+    m = safe_read_map(fname) 
+    height, width = size(m)
+    dico=Dict{Node,Float64}()
+    dist = fill(Inf, height, width)
+    #visited = fill(false, height, width)
+    path = fill((-1,-1), height, width)
+    pq = PriorityQueue{Tuple{Node,Float64}, Float64}()
+    nb_etats = 0
+    b=false
+    if m[D...].cost == Inf || m[A...].cost == Inf
+        println("zone de départ ou d'arrivée sur un obstacle infranchissable ! ")
+        return nothing
+    end
+    function add(o::Tuple{Int,Int}, v::Node, d::Float64)
+        dico[v]=d
+        dist[v...] = d
+        pq[v] = d + heuristic(v,A)
+        path[v...] = o
+    end
+    function eval()
+    end
+    add(D, D, 0.0)
+    while !isempty(pq)
+        v = dequeue!(pq)
+        if !haskey(dico, v)
+            #visited[v...] = true
+            nb_etats += 1
+            if v.coord == A
+                b=true
+                break
+            end  
+            for w in successeurs(v.coord[1], v.coord[2], height, width)
+                d = dist[v...] + m[w...].cost
+                if d < dist[w...]
+                    add(v, w, d)
+                end
+            end
+        end
+    end
+    if b
+        printResults(dist[A...],nb_etats,reconstruct_path(path,D,A))
+    else 
+        println("Aucun chemin n'existe entre le départ et l'arrivée !")
+    end
+end
+
 
 end
 
