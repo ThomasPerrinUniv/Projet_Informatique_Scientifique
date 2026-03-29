@@ -1,11 +1,11 @@
 # Projet_Informatique_Scientifique
 L3 Info-maths, parcours de graphes, Julia
 Dépendances utilisées : DataStructures
-Si première utilisation:
->Pkg.add("Algo")
->Pkg.instanciate()
 Depuis le répertoire racine du projet git :
->julia --project=./Algo
+>julia
+Dans le mode pkg
+>activate "."
+>instanciate
 >using Algo
 Il est possible de lancer les commandes suivantes :
 	algoBFS(fname, D, A)

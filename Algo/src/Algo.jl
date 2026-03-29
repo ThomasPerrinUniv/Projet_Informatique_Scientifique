@@ -331,8 +331,8 @@ function algoAstar(fname::String,D::Tuple{Int64, Int64},A::Tuple{Int64, Int64})
 end
 
 struct Coord
-    x::Int
     y::Int
+    x::Int
 end
 struct Node
     time::Float64
@@ -346,6 +346,7 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
     function heuristic(v::Tuple{Int64, Int64},A::Tuple{Int64, Int64})
         vy,vx=v
         Ay,Ax=A
+        #println("heuristic : ", abs(vy-Ay)+abs(vx-Ax)  )
         return abs(vy-Ay)+abs(vx-Ax)    
     end
     height, width = size(m)
@@ -364,31 +365,31 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         return voisins
     end
     dico=Dict{Node,Float64}()
-    #dist = fill(Inf, height, width)
-    #visited = fill(false, height, width)
     path = Dict{Node,Node}()
+    visited=Dict{Node,Bool}()
     pq = PriorityQueue{Node,Float64}()
     nb_etats = 0
-    b=false
+    finalNode=Node(0.0,Coord(-1,-1)) #si noeud non trouvé
     if m[D...].cost == Inf || m[A...].cost == Inf
         println("zone de départ ou d'arrivée sur un obstacle infranchissable ! ")
         return nothing
     end
     function add(o::Node, v::Node, d::Float64)
-        dico[v]=d 
-        #dist[v...] = d
-        pq[v] = d + heuristic((v.coord.y,v.coord.x),A)
+        dico[v]=d #la distance temporelle
+        pq[v] = d + heuristic((v.coord.y,v.coord.x),A) 
+        #Ajouter à l'heuristique une proximité de coord entre o et v afin de pénaliser les retours arrière
         path[v] = o
     end
     function isInclude(time::Intervalle,safe::Intervalle)
         return time.deb>=safe.deb && time.fin<=safe.fin
     end
     function evalsafeaux(hi::Int,lo::Int,w::Node,time::Intervalle)
+        #println("evalsafeaux: \nlo : ",lo,"hi : ",hi)
         if hi<=lo 
             return false #n'est pas dans l'intervalle de confiance
         end
         mid = div(lo + hi, 2)
-        inter=m[w.coord].safe[mid]
+        inter=m[w.coord.y,w.coord.x].safe[mid]
         if isInclude(time,inter)
             return true
         elseif time.fin<inter.deb #car si = coller présuppose que l'interval n'en forme qu'un seul
@@ -404,43 +405,82 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
 
     end
     function evalsafe(w::Node,inter::Intervalle)
-        return evalsafeaux(1,length(m.[w.coord].safe),w,inter)
+        return evalsafeaux(length(m[w.coord.y,w.coord.x].safe)+1,1,w,inter)
     end
     add(Node(0.0, Coord(D[1], D[2])), Node(0.0, Coord(D[1], D[2])), 0.0)
     while !isempty(pq)
         v = dequeue!(pq)
-        if !haskey(dico, v)
-            #visited[v...] = true
+        if !haskey(visited, v)
+            visited[v] = true
+            #println(v)
             nb_etats += 1
-            if v.coord == A
-                b=true
+            #println("v.y et v.x",v.coord.y,v.coord.x,"\nA[1]",A[1],"\nA[2]",A[2])
+            if v.coord == Coord(A[1], A[2])
+                finalNode=v
                 break
             end  
             for w in safeSuccesseurs(v)
                 #w doit devenir un Node modif successeurs
+                #println("succ : ",w)
                 inter=Intervalle(v.time,w.time)
+                #println("inter : ",inter)
                 if evalsafe(w,inter)
-                    d=v.time+m[w.coord...].cost
-                    if !haskey(dico, w) || d<get(dico, w) 
+                    d=w.time
+                    if !haskey(dico,w) || d<get(dico,w,0) 
                         add(v, w, d)
                     end
+                else
+                    #println("ce n'est pas safe")
                 end
                 #d= eval dist en prenant en compte les safes intervall
                 #d = dist[v...] + m[w...].cost
             end
         end
     end
-    function reconstruct_path(D::Tuple{Int,Int}, A::Tuple{Int,Int})
-        node = Node(0.0,Coord(A[2],A[1]))
+    function modifsafecase(hi::Int,lo::Int,time::Intervalle,tab::Vector{Intervalle})
+            mid = div(lo + hi, 2)
+            inter=tab[mid]
+            if time.deb>=inter.deb && inter.fin>=time.fin #cas où on a trouvé le bon intervalle
+                if time.deb==inter.deb && inter.fin==time.fin #on supprime l'intervalle
+                    deleteat!(tab,mid)
+                elseif time.deb==inter.deb
+                    tab[mid]=Intervalle(time.fin,inter.fin)
+                elseif time.fin==inter.fin
+                    tab[mid]=Intervalle(inter.deb,time.deb)
+                else #intervalle time n'étant pas adjacent aux bornes de tab[mid]
+                    tab[mid]=Intervalle(inter.deb,time.deb)
+                    insert!(tab, mid + 1, Intervalle(time.fin,inter.fin))
+                end
+            elseif inter.deb> time.deb
+                    #rechercher avant
+                return modifsafecase(mid,lo,time,tab)
+            elseif inter.fin<time.fin
+                #rechercher après
+                return modifsafecase(hi,mid+1,time,tab)
+            end
+    end
+    function modifsafe(v::Node,pred::Node)
+        if v.time-pred.time !=0
+            modifsafecase(length(m[v.coord.y,v.coord.x].safe)+1,1,Intervalle(pred.time,v.time),m[v.coord.y,v.coord.x].safe)
+        end
+    end
+    function reconstruct_path(path,D::Node, A::Node)
+        #println("c'est la merde")
+        node = A
         chemin = Node[]
-        if path[A...] == (-1,-1)
+        if !haskey(path,A)
             return chemin
         end
-        while node.coord != D
+        #println("D noeud: ", D)
+        #println("listons le chemin")
+        while node.coord != D.coord
+            println(node)
             pushfirst!(chemin, node)
-            node = path[node...]
+            modifsafe(node,path[node])
+            node = path[node]
         end
         pushfirst!(chemin, D)
+        #println(m)
         return chemin
     end
     function printResults(dist,nb_states,path)::Nothing
@@ -448,16 +488,17 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         println("Activité : ", nb_states)
         println("Chemin : ", path)
     end
-    if b
-        printResults(dist[A...],nb_etats,reconstruct_path(path,D,A))
+    if finalNode!=Node(0.0,Coord(-1,-1))
+        printResults(finalNode.time,nb_etats,reconstruct_path(path,Node(0.0,Coord(D[1],D[2])),finalNode))
     else 
         println("Aucun chemin n'existe entre le départ et l'arrivée !")
     end
 end
 function planificationAgent(fname::String, DA::Vector{Tuple{Coord,Coord}})
-    m = safe_read_map(fname) 
+    m = safe_read_map(fname)
+    transit=Dict{Tuple{Node,Node},Intervalle}() 
     for (D, A) in DA 
-        algoAstar2(m, (D.x, D.y), (A.x, A.y))
+        algoAstar2(m, (D.y, D.x), (A.y, A.x))
     end
 end
 end
