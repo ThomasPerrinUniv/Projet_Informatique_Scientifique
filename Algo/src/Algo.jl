@@ -461,7 +461,7 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
     end
     function modifsafe(v::Node,pred::Node)
         if v.time-pred.time !=0
-            modifsafecase(length(m[v.coord.y,v.coord.x].safe)+1,1,Intervalle(pred.time,v.time),m[v.coord.y,v.coord.x].safe)
+            modifsafecase(length(m[v.coord.y,v.coord.x].safe)+1,1,Intervalle(pred.time+1,v.time+1),m[v.coord.y,v.coord.x].safe)
         end
     end
     function reconstruct_path(path,D::Node, A::Node)
@@ -480,7 +480,6 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
             node = path[node]
         end
         pushfirst!(chemin, D)
-        #println(m)
         return chemin
     end
     function printResults(dist,nb_states,path)::Nothing
@@ -490,6 +489,7 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
     end
     if finalNode!=Node(0.0,Coord(-1,-1))
         printResults(finalNode.time,nb_etats,reconstruct_path(path,Node(0.0,Coord(D[1],D[2])),finalNode))
+        #println(m)
     else 
         println("Aucun chemin n'existe entre le départ et l'arrivée !")
     end
