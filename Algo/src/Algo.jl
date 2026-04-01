@@ -5,6 +5,7 @@ export algoDijkstra
 export algoGlouton
 export algoAstar
 export planificationAgent
+#Fonction de lecture de grille pour BFS, Glouton, Djikstra et A*
 function read_map(filename)
     map = nothing
     lines = 0
@@ -48,6 +49,7 @@ function read_map(filename)
 
     return map
 end
+
 mutable struct Intervalle
     deb::Float64
     fin::Float64
@@ -56,6 +58,7 @@ mutable struct Map
     cost::Float64
     safe::Vector{Intervalle}
 end
+#Fonction de lecture de grille pour la planification multi-agents avec A*
 function safe_read_map(filename)
     map = nothing
     lines = 0
@@ -98,6 +101,30 @@ function safe_read_map(filename)
 
     return map
 end
+function printMap(m::Matrix{Map})
+
+    for row in eachrow(m)
+        for c in row
+            if !isinf(c.cost)
+                print(" ",Int(c.cost),"  ")
+            else
+                print(c.cost," ")
+            end
+        end
+        println()
+    end 
+end
+#Fonction de conversion d'entiers vers un une indexation alphabétique type Excel : A...ZAA...ZZ
+function index_to_alpha(n::Int)
+    result = ""
+    while n > 0
+        n -= 1
+        result = Char('A' + (n % 26)) * result
+        n ÷= 26
+    end
+    return result
+end
+#Fonction déterminant les successeurs d'un noeud dans BFS, Glouton, Djikstra et A*
 function successeurs(y::Int, x::Int, height::Int, width::Int)
     voisins = Tuple{Int,Int}[]
 
@@ -342,11 +369,11 @@ mutable struct Info
     pred::Float64
     poids::Float64
 end
+#Fonction permettant de déteminer le plus court chemin pour un agent avec A*
 function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64},transit::Dict{Tuple{Node,Node},Float64})
     function heuristic(v::Tuple{Int64, Int64},A::Tuple{Int64, Int64})
         vy,vx=v
         Ay,Ax=A
-        #println("heuristic : ", abs(vy-Ay)+abs(vx-Ax)  )
         return abs(vy-Ay)+abs(vx-Ax)    
     end
     height, width = size(m)
@@ -357,7 +384,6 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         # déplacements possibles : haut, bas, gauche, droite 
         #et surplace par convention le coût temporel est d'un
         deltas = [(0, -1), (0, 1), (-1, 0), (1, 0)]
-        #push!(voisins,Node(v.time+1.0,v.coord))
         for (dy, dx) in deltas
             ny, nx = y + dy, x + dx
             if 1 <= ny <= height && 1 <= nx <= width
@@ -379,8 +405,7 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
     function add(o::Node, v::Node, d::Float64)
         dico[v]=d #la distance temporelle
         if o.coord==v.coord
-        #Ajouter à l'heuristique une proximité de coord entre o et v afin de pénaliser les retours arrière
-            pq[v] = d + heuristic((v.coord.y,v.coord.x),A)+1 
+            pq[v] = d + heuristic((v.coord.y,v.coord.x),A) 
         else  
             pq[v] = d + heuristic((v.coord.y,v.coord.x),A) 
         end
@@ -390,7 +415,6 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         return time.deb>=safe.deb && time.fin<=safe.fin
     end
     function evalsafeaux(hi::Int,lo::Int,w::Node,time::Intervalle)
-        #println("evalsafeaux: \nlo : ",lo,"hi : ",hi)
         if hi<=lo 
             return false #n'est pas dans l'intervalle de confiance
         end
@@ -414,7 +438,6 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         return evalsafeaux(length(m[w.coord.y,w.coord.x].safe)+1,1,w,inter)
     end
     function isSwap(u::Node,v::Node)
-        #println("Est ce que la clé ",v,u,"est dans le dico ?")
          return haskey(transit,(v,u))
     end
     add(Node(0.0, Coord(D[1], D[2])), Node(0.0, Coord(D[1], D[2])), 0.0)
@@ -422,28 +445,20 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         v = dequeue!(pq)
         if !haskey(visited, v)
             visited[v] = true
-            #println(v)
             nb_etats += 1
-            #println("v.y et v.x",v.coord.y,v.coord.x,"\nA[1]",A[1],"\nA[2]",A[2])
             if v.coord == Coord(A[1], A[2])
                 finalNode=v
                 break
             end  
             for w in safeSuccesseurs(v)
-                #w doit devenir un Node modif successeurs
-                #println("succ : ",w)
                 inter=Intervalle(v.time,w.time)
-                #println("inter : ",inter)
                 if evalsafe(w,inter) && !isSwap(v,Node(v.time,w.coord))
                     d=w.time
                     if !haskey(dico,w) || d<get(dico,w,0) 
                         add(v, w, d)
                     end
                 else
-                    #println("ce n'est pas safe")
                 end
-                #d= eval dist en prenant en compte les safes intervall
-                #d = dist[v...] + m[w...].cost
             end
         end
     end
@@ -475,43 +490,71 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         end
     end
     function reconstruct_path(path,D::Node, A::Node)
-        #println("c'est la merde")
         node = A
-        chemin = Node[]
+        chemin = Tuple{Int,Int,Int}[]
         if !haskey(path,A)
             return chemin
         end
-        #println("D noeud: ", D)
-        #println("listons le chemin")
         while node.coord != D.coord
-            println(node)
-            pushfirst!(chemin, node)
+            pushfirst!(chemin, (node.coord.y,node.coord.x,Int(node.time)))
             modifsafe(node,path[node])
             transit[(path[node]),Node(path[node].time,node.coord)]=path[node].time
             node = path[node]
         end
-        pushfirst!(chemin, D)
+        pushfirst!(chemin, (D.coord.y,D.coord.x,Int(D.time)))
         return chemin
     end
     function printResults(dist,nb_states,path)::Nothing
         println("Distance minimale : ", dist)
         println("Activité : ", nb_states)
-        println("Chemin : ", path)
+        println("Chemin avec (y,x,temps) : \n", path)
     end
     if finalNode!=Node(0.0,Coord(-1,-1))
         printResults(finalNode.time,nb_etats,reconstruct_path(path,Node(0.0,Coord(D[1],D[2])),finalNode))
-        #println(m)
-        println(transit)
     else 
         println("Aucun chemin n'existe entre le départ et l'arrivée !")
     end
 end
+function printMapPlayer(m::Matrix{Map}, DA::Vector{Tuple{Coord,Coord}})
+    DA_sorted = sort(DA, by = t -> (t[1].y, t[1].x))
+    j = 1
+    n = 1
+    for row in eachrow(m)
+        i = 1
+        for cell in row
+            if !isempty(DA_sorted)
+                couple = DA_sorted[1]
+                if (j, i) == (couple[1].y, couple[1].x)
+                    print(" ", index_to_alpha(n), "  ")
+                    deleteat!(DA_sorted, 1)
+                    n += 1
+                elseif !isinf(cell.cost)
+                    print(" ", Int(cell.cost), "  ")
+                else
+                    print(cell.cost, " ")
+                end
+            else
+                if !isinf(cell.cost)
+                    print(" ", Int(cell.cost), "  ")
+                else
+                    print(cell.cost, " ")
+                end
+            end
+            i += 1
+        end
+        println()
+        j += 1
+    end
+end
 #Fonction a appeler dans le terminal pour effectuer des parcours A* 
-#avec Intervalle de confiance
+#avec intervalle de confiance
 #exemple : planificationAgent("Algo/data/simple.map",[(Algo.Coord(1,4),Algo.Coord(3,3)),(Algo.Coord(3,1),Algo.Coord(1,2))])
-#Les agents ne vont bien pas s'interchanger de place
 function planificationAgent(fname::String, DA::Vector{Tuple{Coord,Coord}})
     m = safe_read_map(fname)
+    println("************************************")
+    println(fname, " : ")
+    printMapPlayer(m,DA)
+    println("************************************")
     transit=Dict{Tuple{Node,Node},Float64}() 
     for (D, A) in DA 
         algoAstar2(m, (D.y, D.x), (A.y, A.x),transit)
