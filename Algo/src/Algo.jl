@@ -342,7 +342,7 @@ mutable struct Info
     pred::Float64
     poids::Float64
 end
-function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64})
+function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64},transit::Dict{Tuple{Node,Node},Float64})
     function heuristic(v::Tuple{Int64, Int64},A::Tuple{Int64, Int64})
         vy,vx=v
         Ay,Ax=A
@@ -407,6 +407,10 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
     function evalsafe(w::Node,inter::Intervalle)
         return evalsafeaux(length(m[w.coord.y,w.coord.x].safe)+1,1,w,inter)
     end
+    function isSwap(u::Node,v::Node)
+        println("Est ce que la clé ",v,u,"est dans le dico ?")
+         return haskey(transit,(v,u))
+    end
     add(Node(0.0, Coord(D[1], D[2])), Node(0.0, Coord(D[1], D[2])), 0.0)
     while !isempty(pq)
         v = dequeue!(pq)
@@ -424,7 +428,7 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
                 #println("succ : ",w)
                 inter=Intervalle(v.time,w.time)
                 #println("inter : ",inter)
-                if evalsafe(w,inter)
+                if evalsafe(w,inter) && !isSwap(v,Node(v.time,w.coord))
                     d=w.time
                     if !haskey(dico,w) || d<get(dico,w,0) 
                         add(v, w, d)
@@ -477,6 +481,7 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
             println(node)
             pushfirst!(chemin, node)
             modifsafe(node,path[node])
+            transit[(path[node]),Node(path[node].time,node.coord)]=path[node].time
             node = path[node]
         end
         pushfirst!(chemin, D)
@@ -490,15 +495,16 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
     if finalNode!=Node(0.0,Coord(-1,-1))
         printResults(finalNode.time,nb_etats,reconstruct_path(path,Node(0.0,Coord(D[1],D[2])),finalNode))
         #println(m)
+        println(transit)
     else 
         println("Aucun chemin n'existe entre le départ et l'arrivée !")
     end
 end
 function planificationAgent(fname::String, DA::Vector{Tuple{Coord,Coord}})
     m = safe_read_map(fname)
-    transit=Dict{Tuple{Node,Node},Intervalle}() 
+    transit=Dict{Tuple{Node,Node},Float64}() 
     for (D, A) in DA 
-        algoAstar2(m, (D.y, D.x), (A.y, A.x))
+        algoAstar2(m, (D.y, D.x), (A.y, A.x),transit)
     end
 end
 end
