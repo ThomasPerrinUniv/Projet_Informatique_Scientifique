@@ -354,8 +354,10 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         y=v.coord.y
         x=v.coord.x
         voisins = Node[]
-        # déplacements possibles : haut, bas, gauche, droite
+        # déplacements possibles : haut, bas, gauche, droite 
+        #et surplace par convention le coût temporel est d'un
         deltas = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+        #push!(voisins,Node(v.time+1.0,v.coord))
         for (dy, dx) in deltas
             ny, nx = y + dy, x + dx
             if 1 <= ny <= height && 1 <= nx <= width
@@ -376,8 +378,12 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
     end
     function add(o::Node, v::Node, d::Float64)
         dico[v]=d #la distance temporelle
-        pq[v] = d + heuristic((v.coord.y,v.coord.x),A) 
+        if o.coord==v.coord
         #Ajouter à l'heuristique une proximité de coord entre o et v afin de pénaliser les retours arrière
+            pq[v] = d + heuristic((v.coord.y,v.coord.x),A)+1 
+        else  
+            pq[v] = d + heuristic((v.coord.y,v.coord.x),A) 
+        end
         path[v] = o
     end
     function isInclude(time::Intervalle,safe::Intervalle)
@@ -408,7 +414,7 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         return evalsafeaux(length(m[w.coord.y,w.coord.x].safe)+1,1,w,inter)
     end
     function isSwap(u::Node,v::Node)
-        println("Est ce que la clé ",v,u,"est dans le dico ?")
+        #println("Est ce que la clé ",v,u,"est dans le dico ?")
          return haskey(transit,(v,u))
     end
     add(Node(0.0, Coord(D[1], D[2])), Node(0.0, Coord(D[1], D[2])), 0.0)
@@ -500,6 +506,10 @@ function algoAstar2(m::Matrix{Map},D::Tuple{Int64, Int64},A::Tuple{Int64, Int64}
         println("Aucun chemin n'existe entre le départ et l'arrivée !")
     end
 end
+#Fonction a appeler dans le terminal pour effectuer des parcours A* 
+#avec Intervalle de confiance
+#exemple : planificationAgent("Algo/data/simple.map",[(Algo.Coord(1,4),Algo.Coord(3,3)),(Algo.Coord(3,1),Algo.Coord(1,2))])
+#Les agents ne vont bien pas s'interchanger de place
 function planificationAgent(fname::String, DA::Vector{Tuple{Coord,Coord}})
     m = safe_read_map(fname)
     transit=Dict{Tuple{Node,Node},Float64}() 
