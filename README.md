@@ -12,10 +12,12 @@ Il est possible de lancer les commandes suivantes :
 	algoDijkstra(fname, D, A)
 	algoGlouton(fname, D, A)
 	algoAstar(fname, D, A)
+	planificationAgent(fname,DA)
 avec:
 -fname le nom du fichier de la map (certaines sont disponibles dans ./Algo/data)
 -D le point de départ du parcours 
 -A le point d'arrivée du parcours
+-DA un tableau de couple de coordonnées d'arrivée et de départ pour chaque agent
 
 Une execution d'un de ces quatres algorithmes pour une instance présentant D ou A sur un obstacle infranchissable retourna directement un message indiquant l'impossibilité de traverser cet obstacle
 
